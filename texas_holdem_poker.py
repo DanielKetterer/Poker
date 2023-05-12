@@ -6,11 +6,11 @@ import sys
 from PIL import ImageTk, Image
 import threading
 import queue
-# import system as sys
 import time
 import matplotlib.pyplot as plt
 global p0history
 global p1history
+global frametemp
 p0history = []
 p1history = []
 
@@ -107,6 +107,7 @@ def main():
         def __init__(self):
             self.need_raise_info = False
             self.show_cards = False
+            self.show_all   = False
             self.game_over = False
             self.acting_player = Player()
             self.possible_responses = []
@@ -125,8 +126,6 @@ def main():
             self.list_of_scores_from_eligible_winners = []
             self.setup = ask_app("Start?")
             self.starting_index = 0
-            # self.p0history = []
-            # self.p1history = []
             while True:
                 try:
                     self.number_of_players = len(self.setup["players"])
@@ -475,6 +474,8 @@ def main():
                 player.win = False
 
         def end_round(self):
+            self.show_all = False
+            self.show_cards = False
             self.list_of_players_not_out = list(set(self.list_of_players_not_out))
             for player in self.list_of_players_not_out:
                 if player.chips <= 0:
@@ -491,7 +492,7 @@ def main():
                 plt.legend([self.list_of_players[0],self.list_of_players[1]])
                 plt.show()
                 sys.exit()
-                
+            # frametemp.update(game_info_q.get())
             new_round = str(ask_app("Start a new round? (yes/no)"))
             if new_round == "yes":
                 print("\n\n\t\t\t\t--ROUND OVER--")
@@ -520,8 +521,8 @@ def main():
 
         def answer(self, player):
             player.stake_gap = self.highest_stake - player.stake
-            if player.all_in or player.fold or self.fold_out:
-                return True
+            # if player.all_in or player.fold or self.fold_out:
+            #     return True
             if player.chips <= 0:
                 print(f"{player.name} is all in!")
                 player.all_in = True
@@ -529,26 +530,45 @@ def main():
             print(f"Put in at least {player.stake_gap} to stay in.\nDon't Have that much? You'll have to go all-in!")
             print(f"Chips available: {player.chips}")
             self.possible_responses.clear()
+            
             if player.stake_gap > 0:
-                self.possible_responses.append("peek")
-                self.possible_responses.append("fold")
-                if player.stake_gap == player.chips:
-                    self.possible_responses.append("all_in_exact")
-                if player.stake_gap > player.chips:
-                    self.possible_responses.append("all_in_partial")
-                if player.stake_gap < player.chips:
-                    self.possible_responses.append("call_exact")
-                    self.possible_responses.append("call_and_raise")
-                    self.possible_responses.append("call_and_all_in")
+                if (self.show_all == True):
+                    self.possible_responses.append("continue")
+                if player.fold==True:
+                  self.possible_responses.append("peek")
+                  self.possible_responses.append("continue")
+                else:
+                    self.possible_responses.append("peek")
+                    self.possible_responses.append("fold")
+                    if player.stake_gap == player.chips:
+                        self.possible_responses.append("all_in_exact")
+                    if player.stake_gap > player.chips:
+                        self.possible_responses.append("all_in_partial")
+                    if player.stake_gap < player.chips:
+                        self.possible_responses.append("call_exact")
+                        self.possible_responses.append("call_and_raise")
+                        self.possible_responses.append("call_and_all_in")
             if player.stake_gap == 0:
-                self.possible_responses.append("check")
-                self.possible_responses.append("raise")
-                self.possible_responses.append("fold")
-                self.possible_responses.append("all_in")
-                self.possible_responses.append("peek")
+                if ((player.all_in == True) or (player.fold == True)):
+                    self.possible_responses.append("continue")
+                    self.possible_responses.append("peek")
+                if (self.show_all == True):
+                    self.possible_responses.append("continue")
+                else:
+                    self.possible_responses.append("check")
+                    self.possible_responses.append("raise")
+                    self.possible_responses.append("fold")
+                    self.possible_responses.append("all_in")
+                    self.possible_responses.append("peek")
             while True:
                 print(self.possible_responses)
-                response = str(ask_app(f"{player}'s action\n->", self))
+                if self.show_all == True:
+                    response = "peek"
+                    self.show_cards = True
+                    response = str(ask_app(f"{player}'s action\n->", self))
+                    return True
+                else:
+                    response = str(ask_app(f"{player}'s action\n->", self))
                 if response not in self.possible_responses:
                     print("Invalid response")
                     continue
@@ -580,7 +600,7 @@ def main():
                                 self.winners.append(player)
                                 for player in self.winners:
                                     player.win = True
-                                self.round_ended = True
+                                # self.round_ended = True
                     return True
                 if response == "call_exact":
                     player.stake += player.stake_gap
@@ -590,6 +610,8 @@ def main():
                     return True
                 if response == "check":
                     player.stake_gap = 0
+                    return True
+                if response == "continue":
                     return True
                 if response == "raise":
                     self.need_raise_info = True
@@ -664,11 +686,22 @@ def main():
                 if response == "peek":
                     self.show_cards = not(self.show_cards)
                     print("showing = " + str(self.show_cards))
+
                     #update the cards for the given player to show
+                    if self.show_all == True:
+                        # self.show_cards = True
+                        return True
+                    else:
+                        return False
                 else: print("Invalid Response")
+
+
 
         def ask_players(self):
             self.ready_list.clear()
+            # if self.show_all == True:
+            #     # return
+            #     1
             global starting_index
             starting_index = self.list_of_players_not_out.index(self.first_actor)
             for player in self.list_of_players_not_out:
@@ -725,9 +758,9 @@ def main():
             list_of_frames = [StartPage, GamePage]
 
             for F in list_of_frames:
-                frame = F(container, self)
-                self.frames[F] = frame
-                frame.grid(row=0, column=0, sticky="nsew")
+                frametemp = F(container, self)
+                self.frames[F] = frametemp
+                frametemp.grid(row=0, column=0, sticky="nsew")
 
             self.fresh = True
             self.show_frame(StartPage)
@@ -980,12 +1013,27 @@ def main():
                 card1 = ImageTk.PhotoImage(Image.open(str("cards\default1.png")).resize((55, 85), Image.ANTIALIAS))
                 self.cc_5.image = card1
                 self.cc_5.configure(image=card1)
+                
+                card1 = ImageTk.PhotoImage(Image.open(str("cards\default1.png")).resize((55, 85), Image.ANTIALIAS))
+                self.card1_p0.image = card1
+                self.card1_p0.configure(image=card1)
+                card2 = ImageTk.PhotoImage(Image.open(str("cards\default1.png")).resize((55, 85), Image.ANTIALIAS))
+                self.card2_p0.image = card2
+                self.card2_p0.configure(image=card2)
+                card1 = ImageTk.PhotoImage(Image.open(str("cards\default1.png")).resize((55, 85), Image.ANTIALIAS))
+                self.card1_p1.image = card1
+                self.card1_p1.configure(image=card1)
+                card2 = ImageTk.PhotoImage(Image.open(str("cards\default1.png")).resize((55, 85), Image.ANTIALIAS))
+                self.card2_p1.image = card2
+                self.card2_p1.configure(image=card2)
+                
                 self.restart = False
             if game.round_ended:
                 time.sleep(0.3)
                 self.new_round_label.lift(self.action_cover_label)
                 self.button_y.lift(self.action_cover_label)
                 self.button_n.lift(self.action_cover_label)
+                
                 winners = []
                 scores = []
                 for player in game.list_of_players_not_out:
@@ -1052,13 +1100,14 @@ def main():
                 self.chips_label_p1["text"] = "Chips:\n" + str(game.list_of_players[1].chips)
             except IndexError:
                 pass
-            
             if game.show_cards == True:
+
+                
                 
                 print("acting_player")
                 print(game.acting_player)
                 print(starting_index)
-                if starting_index == 0:
+                if starting_index == 1:
                     try:
                         card1 = ImageTk.PhotoImage(
                             Image.open("cards\\" + str(game.list_of_players[starting_index].cards[0]) + ".png").resize((55, 85), Image.ANTIALIAS))
@@ -1073,7 +1122,7 @@ def main():
                         self.card2_p0.configure(image=card2)
                     except IndexError:
                         pass
-                if starting_index == 1:
+                if starting_index == 0:
                     try:
                         card1 = ImageTk.PhotoImage(
                             Image.open("cards\\" + str(game.list_of_players[starting_index].cards[0]) + ".png").resize((55, 85), Image.ANTIALIAS))
@@ -1103,6 +1152,40 @@ def main():
                     card2 = ImageTk.PhotoImage(Image.open(str("cards\default1.png")).resize((55, 85), Image.ANTIALIAS))
                     self.card2_p1.image = card2
                     self.card2_p1.configure(image=card2)
+            if game.show_all == True:
+                    print("________SHOWALLSHOWALLSHOWALLSHOWALLSHOWALL_________")
+                    try:
+                        card1 = ImageTk.PhotoImage(
+                            Image.open("cards\\" + str(game.list_of_players[0].cards[0]) + ".png").resize((55, 85), Image.ANTIALIAS))
+                        self.card1_p0.image = card1
+                        self.card1_p0.configure(image=card1)
+                    except IndexError:
+                        pass
+                    try:
+                        card2 = ImageTk.PhotoImage(
+                            Image.open("cards\\" + str(game.list_of_players[0].cards[1]) + ".png").resize((55, 85), Image.ANTIALIAS))
+                        self.card2_p0.image = card2
+                        self.card2_p0.configure(image=card2)
+                    except IndexError:
+                        pass
+                    try:
+                        card3 = ImageTk.PhotoImage(
+                            Image.open("cards\\" + str(game.list_of_players[1].cards[0]) + ".png").resize((55, 85), Image.ANTIALIAS))
+                        self.card1_p1.image = card3
+                        self.card1_p1.configure(image=card3)
+                    except IndexError:
+                        pass
+                    try:
+                        card4 = ImageTk.PhotoImage(
+                            Image.open("cards\\" + str(game.list_of_players[1].cards[1]) + ".png").resize((55, 85), Image.ANTIALIAS))
+                        self.card2_p1.image = card4
+                        self.card2_p1.configure(image=card4)
+                    except IndexError:
+                        pass         
+
+            
+            
+            
             try:
                 self.stake_label_p0["text"] = "Stake: " + str(game.list_of_players[0].stake)
                 self.stake_label_p1["text"] = "Stake: " + str(game.list_of_players[1].stake)
@@ -1129,8 +1212,8 @@ def main():
             response_q.put(entry0)
             game_event.set()
             time.sleep(0.1)
-            # if not game_info_q.empty():
-            self.update(game_info_q.get())
+            if not game_info_q.empty():
+                self.update(game_info_q.get())
 
     def score_interpreter(player):
         list_of_hand_types = ["High Card", "One Pair", "Two Pair", "Three of a Kind", "Straight", "Flush",
@@ -1183,6 +1266,8 @@ def main():
         print(game1)
 
     def play(game):
+        game.show_all = False
+        game.show_cards = False
         game.deck.shuffle()
         game_info_q.put(game)
         update_gui(game)
@@ -1225,14 +1310,19 @@ def main():
             update_gui(game)
         if not game.round_ended:
             game.score_all()
+            
             game.print_round_info()
             game_info_q.put(game)
             update_gui(game)
+        game.show_all = True
+        game.ask_players()
+        game.show_all = False
+        
+        (game_info_q.get())    
         game.find_winners()
         game_info_q.put(game)
         update_gui(game)
-        # update(game
-        # update()
+
         game.print_round_info()
         game.round_ended = True
         print(game.winners, game.winner, [player for player in game.list_of_players_not_out if player.win])
